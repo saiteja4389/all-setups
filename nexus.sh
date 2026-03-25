@@ -1,17 +1,42 @@
+# Update system
 sudo yum update -y
-sudo yum install wget -y
-sudo yum install java-17-amazon-corretto-jmods -y
-sudo mkdir /app && cd /app
-sudo wget https://download.sonatype.com/nexus/3/nexus-3.90.1-01-linux-x86_64.tar.gz
-sudo tar -xvf nexus-3.90.1-01-linux-x86_64.tar.gz
-sudo mv nexus-3.90.1-01 nexus
-sudo adduser nexus
+
+# Install required tools
+sudo yum install -y wget tar
+
+# Install Java 17 (correct package)
+sudo yum install -y java-17-amazon-corretto
+
+# Verify Java
+java -version
+
+# Create directory
+sudo mkdir -p /app
+cd /app
+
+# Download Nexus
+sudo wget https://download.sonatype.com/nexus/3/nexus-3.90.2-06-linux-x86_64.tar.gz
+
+# Extract
+sudo tar -xvzf nexus-3.90.2-06-linux-x86_64.tar.gz
+
+# Rename for consistency
+sudo mv nexus-3.90.2-06 nexus
+
+# Create nexus user (if not exists)
+id nexus || sudo useradd nexus
+
+# Set ownership
 sudo chown -R nexus:nexus /app/nexus
-sudo chown -R nexus:nexus /app/sonatype*
-sudo sed -i '27  run_as_user="nexus"' /app/nexus/bin/nexus
-sudo tee /etc/systemd/system/nexus.service > /dev/null << EOL
+sudo chown -R nexus:nexus /app/sonatype-work
+
+# Configure Nexus to run as nexus user (FIXED sed command)
+sudo sed -i 's/#run_as_user=""/run_as_user="nexus"/' /app/nexus/bin/nexus
+
+# Create systemd service
+sudo tee /etc/systemd/system/nexus.service > /dev/null << 'EOF'
 [Unit]
-Description=nexus service
+Description=Nexus Repository Manager
 After=network.target
 
 [Service]
@@ -21,13 +46,18 @@ User=nexus
 Group=nexus
 ExecStart=/app/nexus/bin/nexus start
 ExecStop=/app/nexus/bin/nexus stop
-User=nexus
-Restart=on-abort
+Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
-EOL
-sudo chkconfig nexus on
-sudo systemctl start nexus
+EOF
+
+# Reload systemd
+sudo systemctl daemon-reload
+
+# Enable and start Nexus
 sudo systemctl enable nexus
+sudo systemctl start nexus
+
+# Check status
 sudo systemctl status nexus
